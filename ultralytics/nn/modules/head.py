@@ -15,7 +15,16 @@ from .conv import Conv, DWConv
 from .transformer import MLP, DeformableTransformerDecoder, DeformableTransformerDecoderLayer
 from .utils import bias_init_with_prob, linear_init
 
-__all__ = "Detect", "Segment", "Pose", "Classify", "OBB", "RTDETRDecoder", "v10Detect"
+__all__ = (
+    "Detect",
+    "Segment",
+    "Pose",
+    "Classify",
+    "OBB",
+    "RTDETRDecoder",
+    "v10Detect",
+    "MultiTaskDetect",
+)
 
 
 class Detect(nn.Module):
@@ -618,3 +627,21 @@ class v10Detect(Detect):
             for x in ch
         )
         self.one2one_cv3 = copy.deepcopy(self.cv3)
+
+
+class MultiTaskDetect(nn.Module):
+    """Wrapper to run multiple Detect heads for multi-task detection."""
+
+    def __init__(self, nc_list=(80,), ch=()):
+        """Create multiple Detect heads given a list of class counts."""
+        super().__init__()
+        self.heads = nn.ModuleList([Detect(nc=nc, ch=ch) for nc in nc_list])
+
+    def forward(self, x):
+        """Return list of outputs from each Detect head."""
+        outputs = []
+        for head in self.heads:
+            # pass a copy of features to avoid in-place modifications between heads
+            x_copy = [xi.clone() for xi in x]
+            outputs.append(head(x_copy))
+        return outputs
